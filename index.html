@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+  <title>Dream Tree</title>
+  <style>
+  body {
+    margin: 0;
+  }
+  </style>
+</head>
+
+<body>
+  <canvas id="space">
+    Sorry, your browser does not support canvas.
+  </canvas>
+  <script>
+  const space = document.getElementById('space')
+  const surface = space.getContext('2d')
+
+  space.width = window.innerWidth
+  space.height = window.innerHeight
+
+  function clearSpace() {
+    surface.save()
+    surface.globalCompositionOperation = 'source-over'
+    surface.fillStyle = 'black'
+    surface.fillRect(0, 0, space.width, space.height)
+    surface.restore()
+  }
+
+  const {
+    PI,
+    sin,
+    cos,
+    sqrt,
+    round,
+    random
+  } = Math
+
+  const util = {
+    random: (min = 0, max = 1) => random() * (max - min) + min,
+    randomColor: a => {
+      const r = round(util.random(0, 255))
+      const g = round(util.random(0, 255))
+      const b = round(util.random(0, 255))
+
+      return `rgba(${r},${g},${b},${typeof a === 'number' ? a : random()})`
+    }
+  }
+
+  class Vector {
+    constructor(x = 0, y = 0) {
+      this.x = x
+      this.y = y
+    }
+
+    add(v) {
+      this.x += v.x
+      this.y += v.y
+      return this
+    }
+
+    rotate(theta) {
+      this.x = cos(theta) * this.x - sin(theta) * this.y
+      this.y = sin(theta) * this.x + cos(theta) * this.y
+      return this
+    }
+
+    length() {
+      return sqrt(this.x * this.x + this.y * this.y)
+    }
+  }
+
+  class Leaf {
+    constructor(
+      location = new Vector(),
+      color = util.randomColor(),
+      radius = util.random(4, 8)
+    ) {
+      this.location = location
+      this.color = color
+      this.radius = radius
+    }
+
+    render(ctx) {
+      const leaf = this
+      const RENDER_COUNT = 5
+
+      for (let i = 0; i < RENDER_COUNT; i++) {
+        (n => setTimeout(() => {
+          ctx.fillStyle = leaf.color
+          ctx.beginPath()
+          ctx.arc(leaf.location.x, leaf.location.y, leaf.radius, 0, PI * 2)
+          ctx.fill()
+        }, n * 60))(i)
+      }
+    }
+  }
+
+  class Branch {
+    constructor(
+      location = new Vector(),
+      color = util.randomColor(),
+      radius = util.random(12, 18),
+      speed = new Vector(util.random(-1, 1), -2)
+    ) {
+      this.location = location
+      this.color = color
+      this.radius = radius
+      this.speed = speed
+      this.length = 0
+      this.generation = 1
+    }
+
+    render(ctx) {
+      const angle = .12 - (.1 / this.generation)
+
+      ctx.beginPath()
+      ctx.fillStyle = this.color
+      ctx.arc(this.location.x, this.location.y, this.radius, 0, PI * 2)
+      ctx.fill()
+
+      this.location.add(this.speed)
+      this.length += this.speed.length()
+      this.radius *= .99
+      this.speed.rotate(util.random(-angle, angle))
+
+      if (this.radius < .8 || this.generation > 10) {
+        const leaf = new Leaf(this.location, this.color)
+
+        this.tree.removeBranch(this)
+        leaf.render(ctx)
+      }
+      this.fork()
+    }
+
+    clone() {
+      const branch = new Branch(
+        new Vector(this.location.x, this.location.y),
+        this.color,
+        this.radius,
+        new Vector(this.speed.x, this.speed.y)
+      )
+
+      branch.generation = this.generation + 1
+
+      return branch
+    }
+
+    fork() {
+      const p = this.length - util.random(60, 120)
+
+      if (p > 0) {
+        const n = round(util.random(1, 3))
+
+        this.tree.stat.fork += n - 1
+        for (let i = 0; i < n; i++) {
+          this.tree.addBranch(this.clone())
+        }
+        this.tree.removeBranch(this)
+      }
+    }
+  }
+
+  class Tree {
+    constructor() {
+      this.stat = {
+        fork: 0,
+        length: 0
+      }
+      this.timer = null
+      this.branches = []
+    }
+
+    addBranch(branch) {
+      branch.tree = this
+      this.branches.push(branch)
+    }
+
+    removeBranch(branch) {
+      const index = this.branches.indexOf(branch)
+
+      if (index > -1) {
+        this.branches.splice(index, 1)
+      }
+    }
+
+    render(ctx) {
+      ctx.globalCompositeOperation = 'lighter'
+
+      this.timer = setInterval(() => {
+        this.branches.forEach(branch => branch.render(ctx))
+      }, 1000 / 30)
+    }
+
+    stop() {
+      this.stat = {
+        fork: 0,
+        length: 0
+      }
+      this.branches.length = 0
+      clearInterval(this.timer)
+    }
+  }
+
+  const tree = new Tree()
+  const treeColor = util.randomColor(.3)
+  const BRANCH_COUNT = 3
+
+  for (let i = 0; i < BRANCH_COUNT; i++) {
+    tree.addBranch(
+      new Branch(new Vector(space.width / 2, space.height), treeColor)
+    )
+  }
+
+  function render() {
+    clearSpace()
+    tree.render(surface)
+  }
+
+  render()
+  </script>
+</body>
+
+</html>
